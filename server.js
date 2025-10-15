@@ -2,25 +2,30 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const mercadopago = require('mercadopago');
+const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ============================================
-// CONFIGURAÇÃO DO MERCADO PAGO
+// CONFIGURAÇÃO DO MERCADO PAGO (SDK v2)
 // ============================================
 const accessToken = process.env.ENVIRONMENT === 'production'
     ? process.env.MERCADOPAGO_ACCESS_TOKEN_PROD
     : process.env.MERCADOPAGO_ACCESS_TOKEN_TEST;
 
-mercadopago.configure({ access_token: accessToken });
+const client = new MercadoPagoConfig({ 
+    accessToken: accessToken,
+    options: { timeout: 5000 }
+});
+
+const payment = new Payment(client);
 
 // ============================================
 // MIDDLEWARES
 // ============================================
 app.use(cors({
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || '*',
     credentials: true
 }));
 app.use(bodyParser.json());
@@ -54,7 +59,7 @@ app.post('/criar-pagamento-pix', async (req, res) => {
 
         console.log('💳 Criando pagamento PIX:', { amount, description, email });
 
-        const payment = await mercadopago.payment.create({
+        const body = {
             transaction_amount: parseFloat(amount),
             description: description,
             payment_method_id: 'pix',
@@ -66,16 +71,18 @@ app.post('/criar-pagamento-pix', async (req, res) => {
                     number: cpf
                 }
             }
-        });
+        };
 
-        console.log('✅ Pagamento PIX criado:', payment.body.id);
+        const result = await payment.create({ body });
+
+        console.log('✅ Pagamento PIX criado:', result.id);
 
         res.json({
             success: true,
-            payment_id: payment.body.id,
-            status: payment.body.status,
-            qr_code: payment.body.point_of_interaction.transaction_data.qr_code,
-            qr_code_base64: payment.body.point_of_interaction.transaction_data.qr_code_base64
+            payment_id: result.id,
+            status: result.status,
+            qr_code: result.point_of_interaction?.transaction_data?.qr_code,
+            qr_code_base64: result.point_of_interaction?.transaction_data?.qr_code_base64
         });
 
     } catch (error) {
@@ -96,11 +103,10 @@ app.post('/processar-cartao', async (req, res) => {
 
         console.log('💳 Processando pagamento com cartão:', { amount, installments, email });
 
-        const payment = await mercadopago.payment.create({
+        const body = {
             transaction_amount: parseFloat(amount),
             token: token,
             installments: parseInt(installments),
-            payment_method_id: 'visa', // Será detectado automaticamente pelo token
             payer: {
                 email: email,
                 identification: {
@@ -108,15 +114,17 @@ app.post('/processar-cartao', async (req, res) => {
                     number: cpf
                 }
             }
-        });
+        };
 
-        console.log('✅ Pagamento processado:', payment.body.id, payment.body.status);
+        const result = await payment.create({ body });
+
+        console.log('✅ Pagamento processado:', result.id, result.status);
 
         res.json({
             success: true,
-            payment_id: payment.body.id,
-            status: payment.body.status,
-            status_detail: payment.body.status_detail
+            payment_id: result.id,
+            status: result.status,
+            status_detail: result.status_detail
         });
 
     } catch (error) {
@@ -137,15 +145,15 @@ app.get('/verificar-pagamento/:payment_id', async (req, res) => {
 
         console.log('🔍 Verificando pagamento:', payment_id);
 
-        const payment = await mercadopago.payment.get(payment_id);
+        const result = await payment.get({ id: payment_id });
 
         res.json({
             success: true,
-            payment_id: payment.body.id,
-            status: payment.body.status,
-            status_detail: payment.body.status_detail,
-            amount: payment.body.transaction_amount,
-            payer_email: payment.body.payer.email
+            payment_id: result.id,
+            status: result.status,
+            status_detail: result.status_detail,
+            amount: result.transaction_amount,
+            payer_email: result.payer?.email
         });
 
     } catch (error) {
@@ -171,14 +179,14 @@ app.post('/webhook', async (req, res) => {
 
         // Processa notificação em background
         if (type === 'payment') {
-            const payment = await mercadopago.payment.get(data.id);
+            const result = await payment.get({ id: data.id });
             
-            console.log('💰 Status do pagamento:', payment.body.status);
+            console.log('💰 Status do pagamento:', result.status);
 
-            if (payment.body.status === 'approved') {
+            if (result.status === 'approved') {
                 console.log('✅ Pagamento aprovado! Ativando assinatura...');
                 // Aqui você ativaria a assinatura do usuário no Firebase
-                // await ativarAssinatura(payment.body.payer.email);
+                // await ativarAssinatura(result.payer.email);
             }
         }
 
