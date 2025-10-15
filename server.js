@@ -1,5 +1,3 @@
-require('dotenv').config();
-
 // ===== DEBUG: Verificar variáveis =====
 console.log('🔍 DEBUG - Verificando variáveis de ambiente:');
 console.log('ENVIRONMENT:', process.env.ENVIRONMENT);
