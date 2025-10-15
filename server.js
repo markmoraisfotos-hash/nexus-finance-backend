@@ -1,4 +1,21 @@
 require('dotenv').config();
+
+// ===== DEBUG: Verificar variáveis =====
+console.log('🔍 DEBUG - Verificando variáveis de ambiente:');
+console.log('ENVIRONMENT:', process.env.ENVIRONMENT);
+console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('PORT:', process.env.PORT);
+console.log('ACCESS_TOKEN_TEST existe?', !!process.env.MERCADOPAGO_ACCESS_TOKEN_TEST);
+console.log('ACCESS_TOKEN_PROD existe?', !!process.env.MERCADOPAGO_ACCESS_TOKEN_PROD);
+if (process.env.MERCADOPAGO_ACCESS_TOKEN_TEST) {
+    console.log('ACCESS_TOKEN_TEST começa com:', process.env.MERCADOPAGO_ACCESS_TOKEN_TEST.substring(0, 10));
+}
+if (process.env.MERCADOPAGO_ACCESS_TOKEN_PROD) {
+    console.log('ACCESS_TOKEN_PROD começa com:', process.env.MERCADOPAGO_ACCESS_TOKEN_PROD.substring(0, 10));
+}
+console.log('===================================\n');
+// ===================================
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -13,6 +30,9 @@ const PORT = process.env.PORT || 3000;
 const accessToken = process.env.ENVIRONMENT === 'production'
     ? process.env.MERCADOPAGO_ACCESS_TOKEN_PROD
     : process.env.MERCADOPAGO_ACCESS_TOKEN_TEST;
+
+console.log('🔑 Token selecionado existe?', !!accessToken);
+console.log('🔑 Token selecionado começa com:', accessToken ? accessToken.substring(0, 10) : 'NENHUM');
 
 const client = new MercadoPagoConfig({ 
     accessToken: accessToken,
@@ -46,7 +66,12 @@ app.get('/status', (req, res) => {
         status: 'online',
         environment: process.env.ENVIRONMENT || 'test',
         timestamp: new Date().toISOString(),
-        mercadopago_configured: !!accessToken
+        mercadopago_configured: !!accessToken,
+        debug: {
+            has_test_token: !!process.env.MERCADOPAGO_ACCESS_TOKEN_TEST,
+            has_prod_token: !!process.env.MERCADOPAGO_ACCESS_TOKEN_PROD,
+            selected_token_exists: !!accessToken
+        }
     });
 });
 
@@ -199,7 +224,7 @@ app.post('/webhook', async (req, res) => {
 // INICIAR SERVIDOR
 // ============================================
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
     console.log(`✅ Ambiente: ${process.env.ENVIRONMENT || 'test'}`);
     console.log(`✅ Mercado Pago configurado: ${!!accessToken}`);
 });
